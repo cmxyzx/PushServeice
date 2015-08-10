@@ -1,5 +1,6 @@
 package org.cmxyzx.push.message;
 
+import org.cmxyzx.push.heartbeat.ServerMessage;
 import org.cmxyzx.push.heartbeat.SocketPool;
 import org.cmxyzx.push.push.PushQueue;
 import org.cmxyzx.push.service.ServiceExecutor;
@@ -13,7 +14,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
 public class MessageState {
-    public static final int CMD_READ_MSG_CLIENT = 1 << 0;
+    public static final int CMD_READ_MSG_CLIENT = 1;
     public static final int CMD_HEARTBEAT_CLIENT = 1 << 1;
     public static final int CMD_PUSH_MSG_CLIENT = 1 << 2;
     public static final int CMD_SEND_MSG_SERVER = 1 << 3;
@@ -28,7 +29,7 @@ public class MessageState {
     }
 
     public void setChannel(SocketChannel sc) {
-        this.mChannel = sc;
+        MessageState.mChannel = sc;
     }
 
     public void processRead() {
@@ -66,7 +67,8 @@ public class MessageState {
                         bos.write(head);
                         bos.write(readBuffer.array());
                         Message msg = new Message(bos.toByteArray());
-                        processMsg(msg);
+                        ServerMessage sMsg = new ServerMessage(msg, 0, 0, 0, System.currentTimeMillis());
+                        processMsg(sMsg);
                     } else {
                         protocolError();
                     }
@@ -78,24 +80,25 @@ public class MessageState {
 
         }
 
-        private void processMsg(Message msg) {
+        private void processMsg(ServerMessage msg) {
             //possible same msg with addUUID & msg payload, doing add UUID first
-            int command = msg.getCommand();
+            int command = msg.getMsg().getCommand();
             if ((command & CMD_ADD_UUID_SERVER) == CMD_ADD_UUID_SERVER) {
                 mPool.putMsg(msg);
             }
             if ((command & CMD_SEND_MSG_SERVER) == CMD_SEND_MSG_SERVER) {
-                Message msgOrig = mPool.getMsg(msg.getUUID());
+                ServerMessage msgOrig = mPool.getMsg(msg.getMsg().getUUID());
                 if (msgOrig != null) {
                     //only accept message for exist UUID
                     mPool.putMsg(msg);
                     mQueue.enQueueMsg(msg);
                 } else {
+                    LogUtil.logI("UUID not exist");
                     //TODO UUID not exist
                 }
             }
             if ((command & CMD_DEL_UUID_SERVER) == CMD_DEL_UUID_SERVER) {
-                mPool.removeUUID(msg.getUUID());
+                mPool.removeUUID(msg.getMsg().getUUID());
             }
 
         }
@@ -152,9 +155,10 @@ public class MessageState {
 
             int command = msg.getCommand();
             if ((command & CMD_READ_MSG_CLIENT) == CMD_READ_MSG_CLIENT) {
-                Message msgBack = mPool.getMsg(msg.getUUID());
-                msgBack.setCommand(CMD_PUSH_MSG_CLIENT);
-                return msgBack.getData();
+                ServerMessage msgBack = mPool.getMsg(msg.getUUID());
+                msgBack.getMsg().setCommand(CMD_PUSH_MSG_CLIENT);
+                msgBack.setLastReadMsg(System.currentTimeMillis());
+                return msgBack.getMsg().getData();
             }
 
             return null;

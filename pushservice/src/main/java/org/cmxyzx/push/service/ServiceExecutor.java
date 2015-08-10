@@ -12,7 +12,7 @@ public class ServiceExecutor {
 
     private ServiceExecutor() {
         PropertiesUtil properties = PropertiesUtil.getInstance();
-        int threadNum = properties.getExecutorThreadNum();
+        int threadNum = properties.getServerExecutorThreadNum();
         if (mService == null) {
             mService = Executors.newFixedThreadPool(threadNum);
         }

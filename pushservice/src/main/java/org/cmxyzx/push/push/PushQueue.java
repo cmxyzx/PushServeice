@@ -1,16 +1,17 @@
 package org.cmxyzx.push.push;
 
-import org.cmxyzx.push.message.Message;
+import org.cmxyzx.push.heartbeat.ServerMessage;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Created by Anthony on 2015/8/9.
+ * PushQueue wrap the ConcurrentLinkedQueue for Message to push
  */
 public class PushQueue {
     private static PushQueue mInstance = new PushQueue();
 
-    private ConcurrentLinkedQueue<Message> mMsgQueue;
+    private ConcurrentLinkedQueue<ServerMessage> mMsgQueue;
 
     private PushQueue() {
         mMsgQueue = new ConcurrentLinkedQueue<>();
@@ -20,15 +21,15 @@ public class PushQueue {
         return mInstance;
     }
 
-    public Message deQueueMsg() {
-        Message msg = null;
+    public ServerMessage deQueueMsg() {
+        ServerMessage msg = null;
         if (!mMsgQueue.isEmpty()) {
             msg = mMsgQueue.poll();
         }
         return msg;
     }
 
-    public void enQueueMsg(Message msg) {
+    public void enQueueMsg(ServerMessage msg) {
         if (msg != null) {
             mMsgQueue.offer(msg);
         }

@@ -8,7 +8,7 @@ public class PropertiesUtil {
     public static final String DEFAULT_CONFIG = "push_config";
     private static final String EMPTY_STRING = "";
     private static PropertiesUtil mInstance;
-    private static Object mLock = new Object();
+    private static final Object mLock = new Object();
     private String mConfig;
     private Properties mProperties;
 
@@ -91,9 +91,22 @@ public class PropertiesUtil {
         return value;
     }
 
-    public int getExecutorThreadNum() {
-        return getIntProgerty("ExecutorThreadNum");
+    public int getServerExecutorThreadNum() {
+        return getIntProgerty("ServerExecutorThreadNum");
     }
+
+    public int getHeartBeatExecutorThreadNum() {
+        return getIntProgerty("HeartBeatExecutorThreadNum");
+    }
+
+    public int getHeartBeatInterval() {
+        return getIntProgerty("HeartBeatInterval");
+    }
+
+    public int getPushQueueCapacity() {
+        return getIntProgerty("PushQueueCapacity");
+    }
+
 
     public int getMessagePoolCapacity() {
         return getIntProgerty("MessagePoolCapacity");
