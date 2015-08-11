@@ -61,8 +61,12 @@ public class ServerMessage {
         this.lastProvideMsg = lastProvideMsg;
     }
 
-    private boolean haveUnreadMsg() {
-        return false;
+    public boolean haveUnreadMsg() {
+        boolean flag = false;
+        if (getMsg().getPayloadLength() > 0 && getLastReadMsg() == 0) {
+            flag = true;
+        }
+        return flag;
     }
 
 }

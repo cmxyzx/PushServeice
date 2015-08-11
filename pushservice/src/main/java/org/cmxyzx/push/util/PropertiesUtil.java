@@ -5,7 +5,7 @@ import java.util.Properties;
 import java.util.ResourceBundle;
 
 public class PropertiesUtil {
-    public static final String DEFAULT_CONFIG = "push_config";
+    public static final String DEFAULT_CONFIG = "org.cmxyzx.push.push_config";
     private static final String EMPTY_STRING = "";
     private static PropertiesUtil mInstance;
     private static final Object mLock = new Object();
@@ -103,9 +103,9 @@ public class PropertiesUtil {
         return getIntProgerty("HeartBeatInterval");
     }
 
-    public int getPushQueueCapacity() {
+    /*public int getPushQueueCapacity() {
         return getIntProgerty("PushQueueCapacity");
-    }
+    }*/
 
 
     public int getMessagePoolCapacity() {

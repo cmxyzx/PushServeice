@@ -38,16 +38,16 @@ public class MessageService extends ServiceBase {
     public void run() {
         if (mSelector != null) {
             try {
-                boolean closed = false;
+                // boolean closed = false;
                 while (mServiceRunning) {
 
                     int readyNum;
-                    if (closed) {
-                        readyNum = mSelector.selectNow();
-                        closed = false;
-                    } else {
+                    //if (closed) {
+                    //    readyNum = mSelector.selectNow();
+                    //     closed = false;
+                    // } else {
                         readyNum = mSelector.select();
-                    }
+                    // }
 
                     if (readyNum > 0) {
                         Set<SelectionKey> keySet = mSelector.selectedKeys();

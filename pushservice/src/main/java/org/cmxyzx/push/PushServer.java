@@ -46,12 +46,12 @@ public class PushServer {
     public void startServer() {
         if (mMsgService != null) {
             Thread msgServiceThread = new Thread(mMsgService, "PUSH_SERVER_MSG_SERVICE");
-            msgServiceThread.setDaemon(true);
+            //msgServiceThread.setDaemon(true);
             msgServiceThread.start();
         }
         if (mPushService != null) {
             Thread pushServiceThread = new Thread(mPushService, "PUSH_SERVER_PUSH_SERVICE");
-            pushServiceThread.setDaemon(true);
+            //pushServiceThread.setDaemon(true);
             pushServiceThread.start();
         }
         if (mHeartBeatService != null) {
@@ -69,7 +69,7 @@ public class PushServer {
             mPushService.stopService();
         }
         if (mHeartBeatService != null) {
-            mPushService.stopService();
+            mHeartBeatService.stopService();
         }
     }
 
@@ -79,6 +79,7 @@ public class PushServer {
         try {
             server.initServer();
             server.startServer();
+
         } catch (IOException e) {
             e.printStackTrace();
         }

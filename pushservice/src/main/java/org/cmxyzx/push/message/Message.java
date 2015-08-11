@@ -1,5 +1,6 @@
 package org.cmxyzx.push.message;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;
 
@@ -51,8 +52,9 @@ public class Message {
         data[39] = (byte) (command & 0xFF);// command low
     }
 
-    public static byte[] createHeatBeatMsg(String uuid){
+    public static byte[] createHeatBeatMsg(String uuid, boolean haveUnread) {
         int command = MessageState.CMD_HEARTBEAT_CLIENT;
+        if (haveUnread) command = command | MessageState.CMD_UNREAD_MSG_CLIENT;
         int payloadLength = 0;
         byte[] heartbeat = new byte[42];
         heartbeat[0] = (byte) 0x1;// version
@@ -64,6 +66,20 @@ public class Message {
         heartbeat[41] = (byte) (payloadLength & 0xFF);// length low
 
         return heartbeat;
+    }
+
+    public static ByteBuffer createReplayMsg(String uuid, int command) {
+        int payloadLength = 0;
+        byte[] reply = new byte[42];
+        reply[0] = (byte) 0x1;// version
+        reply[1] = (byte) 0x0;// AppCode
+        System.arraycopy(uuid.getBytes(), 0, reply, 2, 36);//uuid
+        reply[38] = (byte) ((command & 0xFF00) >> 8);//command high
+        reply[39] = (byte) (command & 0xFF);// command low
+        reply[40] = (byte) ((payloadLength & 0xFF00) >> 8);// length high
+        reply[41] = (byte) (payloadLength & 0xFF);// length low
+
+        return ByteBuffer.wrap(reply);
     }
 
     private static void main(String[] args) {
