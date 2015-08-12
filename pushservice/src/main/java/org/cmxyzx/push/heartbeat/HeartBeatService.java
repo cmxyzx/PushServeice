@@ -61,13 +61,13 @@ public class HeartBeatService extends ServiceBase {
                 try {
                     Thread.sleep(threadSleep);
                     if (threadSleep < threadSleepMax) {
-                        threadSleep += sleepStep;
+                        threadSleep += sleepStep; //dynamic adding sleep time when push queue have no msg, save cpu time
                     }
                 } catch (InterruptedException e) {
                     LogUtil.logE("InterruptedException", e);
                 }
             } else {
-                threadSleep = sleepStep;
+                threadSleep = sleepStep;// reset sleep time to minimum value for lower latency
                 String UUID = msg.getMsg().getUUID();
                 if (TextUtil.checkUUID(UUID)) {
                     Socket socket = mSocketPool.getSocket(UUID);
