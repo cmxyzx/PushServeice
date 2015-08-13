@@ -28,6 +28,7 @@ public class NIOClient {
     private Selector mSelector;
     private boolean mClientRunning = false;
     private ByteBuffer mSendBuffer;
+    private static final Object mBufferLock = new Object();
 
     NIOClient(InetSocketAddress address) {
         mAddress = address;
@@ -59,7 +60,9 @@ public class NIOClient {
                 ) {
             bos.write(msg.getData());
         }
-        mSendBuffer = ByteBuffer.wrap(bos.toByteArray());
+        synchronized (mBufferLock) {
+            mSendBuffer = ByteBuffer.wrap(bos.toByteArray());
+        }
     }
 
     private void processReadBuffer(ByteBuffer readBuffer) {
@@ -102,13 +105,19 @@ public class NIOClient {
                                 }
                             }
                             if (key.isWritable()) {
+
                                 if (mSendBuffer != null) {
-                                    threadSleep = sleepStep;
-                                    SocketChannel channel = (SocketChannel) key.channel();
-                                    if (channel.isConnected()) {
-                                        mSendBuffer.flip();
-                                        channel.write(mSendBuffer);
-                                        channel.register(mSelector, SelectionKey.OP_READ);
+                                    synchronized (mBufferLock) {
+                                        if (mSendBuffer != null) {
+                                            threadSleep = sleepStep;
+                                            SocketChannel channel = (SocketChannel) key.channel();
+                                            if (channel.isConnected()) {
+                                                mSendBuffer.flip();
+                                                channel.write(mSendBuffer);
+                                                mSendBuffer = null;
+                                                channel.register(mSelector, SelectionKey.OP_READ);
+                                            }
+                                        }
                                     }
                                 } else {
                                     try {

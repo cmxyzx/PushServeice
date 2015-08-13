@@ -1,6 +1,7 @@
 package org.cmxyzx.push.api;
 
 import org.cmxyzx.push.message.Message;
+import org.cmxyzx.push.message.MessageState;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -13,6 +14,7 @@ import java.util.List;
 public class ServiceInstance {
     private static ServiceInstance mInstance;
     private InetSocketAddress mAddress;
+    private NIOClient mClient;
 
     private ServiceInstance(InetSocketAddress address) {
         mAddress = address;
@@ -24,25 +26,42 @@ public class ServiceInstance {
     }
 
     public void init() {
-        NIOClient client = new NIOClient(mAddress);
+        mClient = new NIOClient(mAddress);
         try {
-            client.init();
+            mClient.init();
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    public void addUUID(String UUID) {
-
+    public void addUUID(String UUID) throws IOException {
+        if (mClient != null) {
+            Message msg = Message.createEmptyMsg(UUID, MessageState.CMD_ADD_UUID_SERVER);
+            if (msg != null) {
+                mClient.sendMessage(msg);
+            }
+        }
     }
 
-    public void deleteUUID(String UUID) {
+    public void deleteUUID(String UUID) throws IOException {
+        if (mClient != null) {
+            Message msg = Message.createEmptyMsg(UUID, MessageState.CMD_DEL_UUID_SERVER);
+            if (msg != null) {
+                mClient.sendMessage(msg);
+            }
+        }
     }
 
-    public void sendMessage(Message msg) {
+    public void sendMessage(Message msg) throws IOException {
+        if (mClient != null) {
+            mClient.sendMessage(msg);
+        }
     }
 
-    public void sendMessageList(List<Message> list) {
+    public void sendMessageList(List<Message> list) throws IOException {
+        if (mClient != null) {
+            mClient.sendMessageList(list);
+        }
     }
 
 }

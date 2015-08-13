@@ -24,7 +24,8 @@ public class MessageState {
     public static final int CMD_UNREAD_MSG_CLIENT = 1 << 6;
     public static final int CMD_OP_ACK_SERVER = 1 << 7;
     public static final int CMD_OP_NCK_SERVER = 1 << 8;
-    public static final int CMD_NO_MSG_CLIENT = 1 >> 9;
+    public static final int CMD_NO_MSG_CLIENT = 1 << 9;
+    public static final int CMD_CMD_EMPTY = 1 << 10;
 
     private static final int PKG_HEAD_LENGTH = 42;
     private static final String BLANK_UUID = "a0000000-000a-000a-00aa-0a0a0a0aa0aa";

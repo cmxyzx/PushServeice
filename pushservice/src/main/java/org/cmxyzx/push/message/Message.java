@@ -1,5 +1,7 @@
 package org.cmxyzx.push.message;
 
+import org.cmxyzx.push.util.TextUtil;
+
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;
@@ -80,6 +82,23 @@ public class Message {
         reply[41] = (byte) (payloadLength & 0xFF);// length low
 
         return ByteBuffer.wrap(reply);
+    }
+
+    public static Message createEmptyMsg(String uuid, int command) {
+        if (TextUtil.checkUUID(uuid) && command != 0) {
+            int payloadLength = 0;
+            byte[] msg = new byte[42];
+            msg[0] = (byte) 0x1;// version
+            msg[1] = (byte) 0x0;// AppCode
+            System.arraycopy(uuid.getBytes(), 0, msg, 2, 36);//uuid
+            msg[38] = (byte) ((command & 0xFF00) >> 8);//command high
+            msg[39] = (byte) (command & 0xFF);// command low
+            msg[40] = (byte) ((payloadLength & 0xFF00) >> 8);// length high
+            msg[41] = (byte) (payloadLength & 0xFF);// length low
+
+            return new Message(msg);
+        }
+        return null;
     }
 
     private static void main(String[] args) {
