@@ -7,7 +7,6 @@ import org.cmxyzx.push.util.PropertiesUtil;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.SocketOptions;
 import java.net.StandardSocketOptions;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -56,9 +55,10 @@ public class PushService extends ServiceBase {
                             keyIterator.remove();
                             if (key.isAcceptable()) {
                                 ServerSocketChannel server = (ServerSocketChannel) key.channel();
-                                MessageState state = new MessageState();
+
                                 SocketChannel client = server.accept();
                                 client.configureBlocking(false);
+                                MessageState state = new MessageState(client);
                                 client.register(mSelector, SelectionKey.OP_READ, state);
                                 //client.socket().setKeepAlive(true);
                                 //client.socket().setTcpNoDelay(true);
@@ -69,13 +69,23 @@ public class PushService extends ServiceBase {
                             if (key.isReadable()) {
                                 SocketChannel client = (SocketChannel) key.channel();
                                 MessageState state = (MessageState) key.attachment();
-                                state.setChannel(client);
-                                state.processClientRead();
+                                if (!state.getChannelState()) {
+                                    state.processClientRead();
+                                    client.register(mSelector, SelectionKey.OP_WRITE, state);
+                                }
+                            }
+                            if (key.isWritable()) {
+                                SocketChannel client = (SocketChannel) key.channel();
+                                MessageState state = (MessageState) key.attachment();
+                                if (!state.getChannelState()) {
+                                    client.write(state.processWrite());
+                                    client.register(mSelector, SelectionKey.OP_READ, state);
+                                }
                             }
                         }
                     }
                 }
-            } catch (IOException e) {
+            } catch (IOException | InterruptedException e) {
                 e.printStackTrace();
             } finally {
                 try {

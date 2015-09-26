@@ -6,6 +6,7 @@ import org.cmxyzx.push.message.MessageState;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Created by Anthony on 2015/8/12.
@@ -34,7 +35,11 @@ public class ServiceInstance {
         }
     }
 
-    public void addUUID(String UUID) throws IOException {
+    public void addUUID(UUID uuid) throws IOException, InterruptedException, NotInitException {
+        addUUID(uuid.toString());
+    }
+
+    public void addUUID(String UUID) throws IOException, InterruptedException, NotInitException {
         if (mClient != null) {
             Message msg = Message.createEmptyMsg(UUID, MessageState.CMD_ADD_UUID_SERVER);
             if (msg != null) {
@@ -43,7 +48,11 @@ public class ServiceInstance {
         }
     }
 
-    public void deleteUUID(String UUID) throws IOException {
+    public void deleteUUID(UUID uuid) throws IOException, InterruptedException, NotInitException {
+        deleteUUID(uuid.toString());
+    }
+
+    public void deleteUUID(String UUID) throws IOException, InterruptedException, NotInitException {
         if (mClient != null) {
             Message msg = Message.createEmptyMsg(UUID, MessageState.CMD_DEL_UUID_SERVER);
             if (msg != null) {
@@ -52,15 +61,21 @@ public class ServiceInstance {
         }
     }
 
-    public void sendMessage(Message msg) throws IOException {
+    public void sendMessage(Message msg) throws IOException, InterruptedException, NotInitException {
         if (mClient != null) {
             mClient.sendMessage(msg);
         }
     }
 
-    public void sendMessageList(List<Message> list) throws IOException {
+    public void sendMessageList(List<Message> list) throws IOException, InterruptedException, NotInitException {
         if (mClient != null) {
             mClient.sendMessageList(list);
+        }
+    }
+
+    public void close() {
+        if (mClient != null) {
+            mClient.closeConnection();
         }
     }
 

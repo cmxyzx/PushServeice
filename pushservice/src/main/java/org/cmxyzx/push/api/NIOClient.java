@@ -3,6 +3,7 @@ package org.cmxyzx.push.api;
 import org.cmxyzx.push.message.Message;
 import org.cmxyzx.push.message.MessageState;
 import org.cmxyzx.push.util.LogUtil;
+import org.cmxyzx.push.util.WriteQueue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -26,9 +27,9 @@ public class NIOClient {
     private InetSocketAddress mAddress;
     private SocketChannel mSocket;
     private Selector mSelector;
-    private boolean mClientRunning = false;
-    private ByteBuffer mSendBuffer;
-    private static final Object mBufferLock = new Object();
+    private volatile boolean mClientRunning = false;
+    private WriteQueue mQueue;
+
 
     NIOClient(InetSocketAddress address) {
         mAddress = address;
@@ -43,26 +44,34 @@ public class NIOClient {
             mSocket.register(mSelector, SelectionKey.OP_CONNECT);
             mSocket.connect(mAddress);
 
+            mQueue = new WriteQueue();
             Thread client = new Thread(new ClientWork(), "PUSH_API_CLIENT_WORK");
             client.start();
         }
     }
 
-    void sendMessage(Message msg) throws IOException {
+    void sendMessage(Message msg) throws IOException, InterruptedException, NotInitException {
         List<Message> list = new ArrayList<>();
         list.add(msg);
         sendMessageList(list);
     }
 
-    void sendMessageList(List<Message> msgList) throws IOException {
+    void sendMessageList(List<Message> msgList) throws IOException, InterruptedException, NotInitException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         for (Message msg : msgList
                 ) {
             bos.write(msg.getData());
         }
-        synchronized (mBufferLock) {
-            mSendBuffer = ByteBuffer.wrap(bos.toByteArray());
+        if (mQueue != null) {
+            mQueue.enQueueBuffer(ByteBuffer.wrap(bos.toByteArray()));
+        } else {
+            throw new NotInitException("Client Used before init");
         }
+
+    }
+
+    void closeConnection() {
+        mClientRunning = false;
     }
 
     private void processReadBuffer(ByteBuffer readBuffer) {
@@ -86,9 +95,6 @@ public class NIOClient {
 
         @Override
         public void run() {
-            int threadSleep = 10;
-            int threadSleepMax = 500;
-            int sleepStep = 10;
             try {
                 while (mClientRunning) {
                     if (mSelector.select(SELECTOR_TIME_OUT * 1000) > 0) {
@@ -105,30 +111,20 @@ public class NIOClient {
                                 }
                             }
                             if (key.isWritable()) {
-
-                                if (mSendBuffer != null) {
-                                    synchronized (mBufferLock) {
-                                        if (mSendBuffer != null) {
-                                            threadSleep = sleepStep;
-                                            SocketChannel channel = (SocketChannel) key.channel();
-                                            if (channel.isConnected()) {
-                                                mSendBuffer.flip();
-                                                channel.write(mSendBuffer);
-                                                mSendBuffer = null;
-                                                channel.register(mSelector, SelectionKey.OP_READ);
-                                            }
+                                if (mQueue != null) {
+                                    ByteBuffer sendBuffer = mQueue.deQueueBuffer();
+                                    if (sendBuffer != null) {//check if timeout return null object
+                                        SocketChannel channel = (SocketChannel) key.channel();
+                                        if (channel.isConnected()) {
+                                            //mSendBuffer.flip();
+                                            channel.write(sendBuffer);
+                                            LogUtil.logD("ClientWriting:" + new String(sendBuffer.array()));
+                                            channel.register(mSelector, SelectionKey.OP_READ);
                                         }
-                                    }
-                                } else {
-                                    try {
-                                        Thread.sleep(threadSleep);
-                                        if (threadSleep < threadSleepMax) {
-                                            threadSleep += sleepStep; //dynamic adding sleep time when push queue have no msg, save cpu time
-                                        }
-                                    } catch (InterruptedException e) {
-                                        e.printStackTrace();
                                     }
                                 }
+
+
                             } else if (key.isReadable()) {
                                 SocketChannel channel = (SocketChannel) key.channel();
                                 ByteBuffer readBuffer = ByteBuffer.allocate(DEFAULT_BLOCK);
@@ -139,7 +135,7 @@ public class NIOClient {
                         }
                     }
                 }
-            } catch (IOException e) {
+            } catch (IOException | InterruptedException e) {
                 e.printStackTrace();
             } finally {
                 if (mSelector != null) {

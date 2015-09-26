@@ -7,51 +7,10 @@ import java.util.Arrays;
 import java.util.UUID;
 
 public class Message {
-    public Message(byte[] data) {
-        this.data = Arrays.copyOf(data, data.length);
-    }
-
     private byte[] data;
 
-    public int getVersion() {
-        return (data[0] & 0xFF);
-    }
-
-    public int getAppCode() {
-        return (data[1] & 0xFF);
-    }
-
-    public String getUUID() {
-        return new String(Arrays.copyOfRange(data, 2, 38));
-    }
-
-    public int getCommand() {
-        return ((data[38] & 0xFF) << 8) | (data[39] & 0xFF);
-    }
-
-    public int getPayloadLength() {
-        return ((data[40] & 0xFF) << 8) | (data[41] & 0xFF);
-    }
-
-    public byte[] getPayload() {
-        return Arrays.copyOfRange(data, 42, 42 + getPayloadLength());
-    }
-
-    public byte[] getData() {
-        return data;
-    }
-
-    public void setVersion(int version) {
-        data[0] = (byte) (version & 0xFF);
-    }
-
-    public void setAppCode(int appCode) {
-        data[1] = (byte) (appCode & 0xFF);
-    }
-
-    public void setCommand(int command) {
-        data[38] = (byte) ((command & 0xFF00) >> 8);//command high
-        data[39] = (byte) (command & 0xFF);// command low
+    public Message(byte[] data) {
+        this.data = Arrays.copyOf(data, data.length);
     }
 
     public static byte[] createHeatBeatMsg(String uuid, boolean haveUnread) {
@@ -88,6 +47,22 @@ public class Message {
         if (TextUtil.checkUUID(uuid) && command != 0) {
             int payloadLength = 0;
             byte[] msg = new byte[42];
+            msg[0] = (byte) 0x1;// version
+            msg[1] = (byte) 0x0;// AppCode
+            System.arraycopy(uuid.getBytes(), 0, msg, 2, 36);//uuid
+            msg[38] = (byte) ((command & 0xFF00) >> 8);//command high
+            msg[39] = (byte) (command & 0xFF);// command low
+            msg[40] = (byte) ((payloadLength & 0xFF00) >> 8);// length high
+            msg[41] = (byte) (payloadLength & 0xFF);// length low
+
+            return new Message(msg);
+        }
+        return null;
+    }
+
+    public static Message createMsg(String uuid, int command, int payloadLength) {
+        if (TextUtil.checkUUID(uuid) && command != 0 && payloadLength >= 0) {
+            byte[] msg = new byte[42 + payloadLength];
             msg[0] = (byte) 0x1;// version
             msg[1] = (byte) 0x0;// AppCode
             System.arraycopy(uuid.getBytes(), 0, msg, 2, 36);//uuid
@@ -149,6 +124,55 @@ public class Message {
         System.out.println("Command:" + msg1.getCommand());
         System.out.println("PayloadLength:" + msg1.getPayloadLength());
         System.out.println("Payload:" + new String(msg1.getPayload()));
+    }
+
+    public int getVersion() {
+        return (data[0] & 0xFF);
+    }
+
+    public void setVersion(int version) {
+        data[0] = (byte) (version & 0xFF);
+    }
+
+    public int getAppCode() {
+        return (data[1] & 0xFF);
+    }
+
+    public void setAppCode(int appCode) {
+        data[1] = (byte) (appCode & 0xFF);
+    }
+
+    public String getUUID() {
+        return new String(Arrays.copyOfRange(data, 2, 38));
+    }
+
+    public int getCommand() {
+        return ((data[38] & 0xFF) << 8) | (data[39] & 0xFF);
+    }
+
+    public void setCommand(int command) {
+        data[38] = (byte) ((command & 0xFF00) >> 8);//command high
+        data[39] = (byte) (command & 0xFF);// command low
+    }
+
+    public int getPayloadLength() {
+        return ((data[40] & 0xFF) << 8) | (data[41] & 0xFF);
+    }
+
+    public byte[] getPayload() {
+        return Arrays.copyOfRange(data, 42, 42 + getPayloadLength());
+    }
+
+    public void setPayload(byte[] payload) {
+        int payloadLength = getPayloadLength();
+        if (payloadLength > 0 && (payloadLength == payload.length)) {
+            System.arraycopy(payload, 0, data, 42, payloadLength);//paylload
+        }
+
+    }
+
+    public byte[] getData() {
+        return data;
     }
 
 }

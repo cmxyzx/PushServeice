@@ -7,6 +7,7 @@ import org.cmxyzx.push.push.PushQueue;
 import org.cmxyzx.push.service.ServiceExecutor;
 import org.cmxyzx.push.util.LogUtil;
 import org.cmxyzx.push.util.TextUtil;
+import org.cmxyzx.push.util.WriteQueue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -30,23 +31,56 @@ public class MessageState {
     private static final int PKG_HEAD_LENGTH = 42;
     private static final String BLANK_UUID = "a0000000-000a-000a-00aa-0a0a0a0aa0aa";
 
-    private static SocketChannel mChannel;
+    private static final int WRITE_QUEUE_SIZE = 6;
 
-    public MessageState() {
+    private final SocketChannel mChannel;
+    private final WriteQueue mWriteQueue;
+
+    private volatile boolean mChannelClosed = true;
+
+    public MessageState(SocketChannel sc) {
+        mChannel = sc;
+        mWriteQueue = new WriteQueue(WRITE_QUEUE_SIZE);
+        mChannelClosed = false;
     }
 
-    public void setChannel(SocketChannel sc) {
-        MessageState.mChannel = sc;
-    }
 
     public void processRead() {
         ServiceExecutor executor = ServiceExecutor.getInstance();
         executor.execute(new Reading());
     }
 
+    public ByteBuffer processWrite() throws IOException, InterruptedException {
+        return mWriteQueue.deQueueAll();
+    }
+
     public void processClientRead() {
         ServiceExecutor executor = ServiceExecutor.getInstance();
         executor.execute(new ClientReading());
+    }
+
+    public boolean getChannelState() {
+        return mChannelClosed;
+    }
+
+    private void closeChannel() throws IOException {
+        if (!mChannelClosed) {
+            mChannelClosed = true;
+            LogUtil.logI("Disconnected:" + mChannel.getRemoteAddress());
+            mChannel.close();
+
+        }
+    }
+
+    private void protocolError(String uuid) {
+        if (mChannel != null && mChannel.isConnected()) {
+            try {
+                mWriteQueue.enQueueBuffer(Message.createReplayMsg(uuid, CMD_OP_NCK_SERVER));
+            } catch (InterruptedException e) {
+                LogUtil.logE("InterruptedException", e);
+            }
+        }
+
     }
 
     class Reading implements Runnable {
@@ -60,12 +94,13 @@ public class MessageState {
 
         @Override
         public void run() {
-            if (mChannel != null) {
-                byte[] head = new byte[PKG_HEAD_LENGTH];
-                ByteBuffer headBuffer = ByteBuffer.wrap(head);
-                int pkgLength;
-                try {
+            try {
+                if (mChannel != null && mChannel.isOpen() && mChannel.isConnected()) {
+                    byte[] head = new byte[PKG_HEAD_LENGTH];
+                    ByteBuffer headBuffer = ByteBuffer.wrap(head);
+                    int pkgLength;
                     int readNum = mChannel.read(headBuffer);
+
                     if (readNum == PKG_HEAD_LENGTH) {
                         pkgLength = ((head[40] & 0xFF) << 8) | (head[41] & 0xFF);
                         ByteBuffer readBuffer = ByteBuffer.allocate(pkgLength);
@@ -76,19 +111,22 @@ public class MessageState {
                         Message msg = new Message(bos.toByteArray());
                         ServerMessage sMsg = new ServerMessage(msg, 0, 0, 0, System.currentTimeMillis());
                         int commandBack = processMsg(sMsg);
-                        mChannel.write(Message.createReplayMsg(msg.getUUID(), commandBack));
-                    } else {
-                        protocolError(BLANK_UUID);
+                        mWriteQueue.enQueueBuffer(Message.createReplayMsg(msg.getUUID(), commandBack));
+                    } else if (readNum == -1) {
+                        //connection is closed by pear
+                        closeChannel();
                     }
-
-                } catch (IOException e) {
-                    LogUtil.logE("IOException during MessageState Reading", e);
+                    //else{
+                    //    protocolError(BLANK_UUID);
+                    //}
                 }
+            } catch (IOException | InterruptedException e) {
+                LogUtil.logE("IOException or InterruptedException during MessageState Reading", e);
             }
-
         }
 
-        private int processMsg(ServerMessage msg) {
+
+        private int processMsg(ServerMessage msg) throws InterruptedException {
             //possible same msg with addUUID & msg payload, doing add UUID first
             int command = msg.getMsg().getCommand();
             int commandBack = CMD_OP_NCK_SERVER;
@@ -143,20 +181,23 @@ public class MessageState {
                         if (back != null) {
                             ByteBuffer sendBuffer = ByteBuffer.wrap(back);
                             sendBuffer.flip();
-                            mChannel.write(sendBuffer);
+                            mWriteQueue.enQueueBuffer(sendBuffer);
                         } else {
                             if ((msg.getCommand() & CMD_READ_MSG_CLIENT) == CMD_READ_MSG_CLIENT) {
-                                mChannel.write(Message.createReplayMsg(msg.getUUID(), CMD_NO_MSG_CLIENT));
+                                mWriteQueue.enQueueBuffer(Message.createReplayMsg(msg.getUUID(), CMD_NO_MSG_CLIENT));
                             } else {
                                 protocolError(msg.getUUID());
                             }
                         }
-                    } else {
-                        protocolError(BLANK_UUID);
-                    }
+                    } else if (readNum == -1) {
+                        //connection is closed by pear
+                        closeChannel();
+                    }// else {
+                    //   protocolError(BLANK_UUID);
+                    //}
 
-                } catch (IOException e) {
-                    LogUtil.logE("IOException during MessageState ClientReading", e);
+                } catch (IOException | InterruptedException e) {
+                    LogUtil.logE("IOException or InterruptedException during MessageState ClientReading", e);
                 }
             }
 
@@ -189,17 +230,6 @@ public class MessageState {
             return null;
         }
 
-
-    }
-
-    private void protocolError(String uuid) {
-        if (mChannel != null && mChannel.isConnected()) {
-            try {
-                mChannel.write(Message.createReplayMsg(uuid, CMD_OP_NCK_SERVER));
-            } catch (IOException e) {
-                LogUtil.logE("IOException", e);
-            }
-        }
 
     }
 }

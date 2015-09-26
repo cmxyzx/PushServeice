@@ -57,17 +57,27 @@ public class MessageService extends ServiceBase {
                             keyIterator.remove();
                             if (key.isValid() && key.isAcceptable()) {
                                 ServerSocketChannel server = (ServerSocketChannel) key.channel();
-                                MessageState state = new MessageState();
                                 SocketChannel client = server.accept();
                                 client.configureBlocking(false);
+                                MessageState state = new MessageState(client);
                                 client.register(mSelector, SelectionKey.OP_READ, state);
                                 LogUtil.logV("MessageService Accepted:" + client.getRemoteAddress());
+                            }
+                            if (key.isValid() && key.isWritable()) {
+                                SocketChannel client = (SocketChannel) key.channel();
+                                MessageState state = (MessageState) key.attachment();
+                                if (!state.getChannelState() && client.isOpen() && client.isConnected()) {
+                                    client.write(state.processWrite());
+                                    client.register(mSelector, SelectionKey.OP_READ, state);
+                                }
                             }
                             if (key.isValid() && key.isReadable()) {
                                 SocketChannel client = (SocketChannel) key.channel();
                                 MessageState state = (MessageState) key.attachment();
-                                state.setChannel(client);
-                                state.processRead();
+                                if (!state.getChannelState() && client.isOpen() && client.isConnected()) {
+                                    state.processRead();
+                                    client.register(mSelector, SelectionKey.OP_WRITE, state);
+                                }
                                 //client.close();
                                 //closed = true;
                                 //key.cancel();
@@ -75,8 +85,8 @@ public class MessageService extends ServiceBase {
                         }
                     }
                 }
-            } catch (IOException e) {
-                LogUtil.logE("IOException", e);
+            } catch (IOException | InterruptedException e) {
+                LogUtil.logE("IOException or InterruptedException on messageService", e);
             } finally {
                 try {
                     if (mSelector != null) {

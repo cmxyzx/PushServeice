@@ -42,9 +42,6 @@ public class HeartBeatService extends ServiceBase {
 
     @Override
     public void run() {
-        int threadSleep = 10;
-        int threadSleepMax = 500;
-        int sleepStep = 10;
 
         //Thread heartBeat = new Thread(new HeartBeatWorker(), "PUSH_SERVER_HEARTBEAT_WORKER");
         //heartBeat.setDaemon(true);
@@ -53,48 +50,48 @@ public class HeartBeatService extends ServiceBase {
         BiConsumer<String, Socket> consumer = new SocketConsumer();
         mSocketPool.forEach(consumer);// only first time iterate the socket already exist in the socketPool to add HeartBeat thread.
         //after that need to call addHeartBeat() add HeartBeat manually
+        try {
+            while (mServiceRunning) {
+                ServerMessage msg = mPushQueue.deQueueMsg();
 
-        while (mServiceRunning) {
-            ServerMessage msg = mPushQueue.deQueueMsg();
-
-            if (msg == null) {
-                try {
-                    Thread.sleep(threadSleep);
-                    if (threadSleep < threadSleepMax) {
-                        threadSleep += sleepStep; //dynamic adding sleep time when push queue have no msg, save cpu time
-                    }
-                } catch (InterruptedException e) {
-                    LogUtil.logE("InterruptedException", e);
-                }
-            } else {
-                threadSleep = sleepStep;// reset sleep time to minimum value for lower latency
-                String UUID = msg.getMsg().getUUID();
-                if (TextUtil.checkUUID(UUID)) {
-                    Socket socket = mSocketPool.getSocket(UUID);
-                    if (socket != null && socket.isConnected()) {
-                        try {
-                            OutputStream os = socket.getOutputStream();
-                            //os.write(Message.createHeatBeatMsg(UUID));
-                            Message send = msg.getMsg();
-                            send.setCommand(send.getCommand() | MessageState.CMD_PUSH_MSG_CLIENT);
-                            os.write(send.getData());
-                            os.flush();
-                            msg.setLastPushMsg(System.currentTimeMillis());
-                        } catch (IOException e) {
-                            LogUtil.logE("IOException", e);
+                if (msg == null) {
+                    //timeout return null object
+                    //currently do nothing
+                    LogUtil.logV("timeout return null object");
+                } else {
+                    String UUID = msg.getMsg().getUUID();
+                    if (TextUtil.checkUUID(UUID)) {
+                        Socket socket = mSocketPool.getSocket(UUID);
+                        if (socket != null && socket.isConnected()) {
+                            OutputStream os;
+                            try {
+                                os = socket.getOutputStream();
+                                //os.write(Message.createHeatBeatMsg(UUID));
+                                Message send = msg.getMsg();
+                                send.setCommand(send.getCommand() | MessageState.CMD_PUSH_MSG_CLIENT);
+                                os.write(send.getData());
+                                os.flush();
+                                msg.setLastPushMsg(System.currentTimeMillis());
+                            } catch (IOException e) {
+                                LogUtil.logE("IOException", e);
+                            }
+                        } else {
+                            //when msg in PushQueue didn't have corresponding socket, no need to put msg back to push queue, msg pool have this copy, wait for client check unread msg with service
+                            // just ignore this msg from push queue
+                            LogUtil.logI("msg in PushQueue didn't have corresponding socket");
                         }
-                    } else {
-                        //when msg in PushQueue didn't have corresponding socket, no need to put msg back to push queue, msg pool have this copy, wait for client check unread msg with service
-                        // just ignore this msg from push queue
-                        LogUtil.logI("msg in PushQueue didn't have corresponding socket");
                     }
                 }
             }
+        } catch (InterruptedException e) {
+            LogUtil.logE("InterruptedException", e);
         }
     }
 
     public void addHeartBeat(String uuid, Socket socket) {
-        mExecutor.scheduleAtFixedRate(new HeartBeatWorker(uuid, socket), 0, mHeartBeatInterval, TimeUnit.SECONDS);
+        if (TextUtil.checkUUID(uuid)) {
+            mExecutor.scheduleAtFixedRate(new HeartBeatWorker(uuid, socket), 0, mHeartBeatInterval, TimeUnit.SECONDS);
+        }
     }
 
 
@@ -114,7 +111,7 @@ public class HeartBeatService extends ServiceBase {
             if (TextUtil.checkUUID(mUuid)) {
                 ServerMessage msg = mPool.getMsg(mUuid);
                 long now = System.currentTimeMillis();
-                if (msg != null && ((now - msg.getLastHeartBeat()) > mHeartBeatInterval)) {
+                if (msg != null && ((now - msg.getLastHeartBeat()) >= mHeartBeatInterval)) {
                     try {
                         if (mSocket != null && mSocket.isConnected()) {
                             OutputStream os = mSocket.getOutputStream();
@@ -155,7 +152,9 @@ public class HeartBeatService extends ServiceBase {
 
         @Override
         public void accept(java.lang.String string, Socket socket) {
-            mExecutor.scheduleAtFixedRate(new HeartBeatWorker(string, socket), 0, mHeartBeatInterval, TimeUnit.SECONDS);
+            if (TextUtil.checkUUID(string)) {
+                mExecutor.scheduleAtFixedRate(new HeartBeatWorker(string, socket), 0, mHeartBeatInterval, TimeUnit.SECONDS);
+            }
         }
     }
 
